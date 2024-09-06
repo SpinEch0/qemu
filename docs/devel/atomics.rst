@@ -212,11 +212,6 @@ They come in six kinds:
   than actually loading the address itself, then it's a _control_
   dependency and a full read barrier or better is required.
 
-.. [#] The DEC Alpha is an exception, because ``smp_read_barrier_depends()``
-   needs a processor barrier.  On strongly-ordered architectures such
-   as x86 or s390, ``smp_rmb()`` and ``qatomic_load_acquire()`` can
-   also be compiler barriers only.
-
 Memory barriers and ``qatomic_load_acquire``/``qatomic_store_release`` are
 mostly used when a data structure has one thread that is always a writer
 and one thread that is always a reader:

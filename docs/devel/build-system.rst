@@ -153,21 +153,6 @@ or by downloading the package with PyPI.  Downloading can be disabled with
 option (currently, only ``--enable-docs``) is explicitly enabled but
 the dependencies are not present[#pip]_.
 
-.. [#distlib] The scripts are created based on the package's metadata,
-              specifically the ``console_script`` entry points.  This is the
-              same mechanism that ``pip`` uses when installing a package.
-              Currently, in all cases it would be possible to use ``python -m``
-              instead of an entry point script, which makes this approach a
-              bit overkill.  On the other hand, creating the scripts is
-              future proof and it makes the contents of the ``pyvenv/bin``
-              directory more informative.  Portability is also not an issue,
-              because the Python Packaging Authority provides a package
-              ``distlib.scripts`` to perform this task.
-
-.. [#pip] ``pip`` might also be used when running ``make check-avocado``
-           if downloading is enabled, to ensure that Avocado is
-           available.
-
 The required versions of the packages are stored in a configuration file
 ``pythondeps.toml``.  The format is custom to QEMU, but it is documented
 at the top of the file itself and it should be easy to understand.  The
