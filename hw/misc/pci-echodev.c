@@ -175,7 +175,6 @@ static void launch_kernel(PciechodevState *pdev, uint64_t va)
         if (gpu_pa)
             break;
         if (retry == 10) {
-            printf("raise gpu pagefault\n");
 
             ih_ring_addr = pdev->bar0[IRQ_RING_BASE_H/4];
             ih_ring_addr = ih_ring_addr << 32;
@@ -192,6 +191,8 @@ static void launch_kernel(PciechodevState *pdev, uint64_t va)
             pci_dma_write(&pdev->pdev, ih_ring_addr + (ih_ring_wptr & ih_ring_size), &va, 8);
             pci_set_irq(&pdev->pdev, 1);
             pdev->bar0[IRQ_REGISTER/4] = 1;
+            printf("raise gpu pagefault, ih ring %ld, rptr %d wptr %d\n", ih_ring_addr, ih_ring_rptr, ih_ring_wptr);
+            pdev->bar0[IRQ_RING_WPTR/4] += 8;
         }
         retry--;
         sleep(1);
