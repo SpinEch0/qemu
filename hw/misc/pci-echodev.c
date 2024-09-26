@@ -123,16 +123,32 @@ static int check_range(uint64_t addr, uint64_t cnt)
 
 static pte_t *walk(pagetable_t pagetable, uint64_t va)
 {
+    pagetable_t entry = pagetable;
+    printf("echodev mmu page table walk !!! pte %p\n", entry);
     for(int level = 2; level > 0; level--) {
-        pte_t *pte = &pagetable[PX(level, va)];
+	printf("level %d pagetable offset %lx\n", level, PX(level, va));
+        pte_t *pte = 0;
+        if (entry < pagetable + PX(level, va) && pagetable + PX(level, va) < entry + 64 * 1024 * 1024 / 8) {
+            pte = &pagetable[PX(level, va)];
+            // printf("level %d next pagetable addr %p\n", level, (void*)(pagetable + PX(level, va)));
+            printf("level %d next pagetable addr %p value %lx\n", level, pte, *pte);
+        } else {
+            printf("invalid pagetable addr %p with offset %lx\n", pagetable, PX(level, va));
+            return 0;
+        }
         if(*pte & PTE_V) {
-            pagetable = (pagetable_t)PTE2PA(*pte);
+            pagetable = (void*)entry + PTE2PA(*pte);
+	    printf("level %d next pagetable addr %p\n", level, pagetable);
         } else {
             return 0;
         }
     }
-    return &pagetable[PX(0, va)];
-
+    if (entry < pagetable + PX(0, va) && pagetable + PX(0, va) < entry + 64 * 1024 * 1024 / 8)
+        return &pagetable[PX(0, va)];
+    else {
+        printf("invalid pagetable addr %p with offset %lx\n", pagetable, PX(0, va));
+        return 0;
+    }
 }
 
 
@@ -141,18 +157,22 @@ static pte_t *walk(pagetable_t pagetable, uint64_t va)
 // Can only be used to look up user pages.
 static uint64_t walkaddr(pagetable_t pagetable, uint64_t va)
 {
-  pte_t *pte;
-  uint64_t pa;
+    pte_t *pte;
+    uint64_t pa;
 
-  pte = walk(pagetable, va);
-  if(pte == 0)
-    return 0;
-  if((*pte & PTE_V) == 0)
-    return 0;
-  if((*pte & PTE_U) == 0)
-    return 0;
-  pa = PTE2PA(*pte);
-  return pa;
+    pte = walk(pagetable, va);
+    if (pte) {
+        printf("mmu get final pte is %lx\n", *pte);
+    }
+    if(pte == 0)
+        return 0;
+    if((*pte & PTE_V) == 0)
+        return 0;
+    // if((*pte & PTE_U) == 0)
+    //     return 0;
+    pa = PTE2PA(*pte);
+    printf("translate gpu pa is %lx\n", pa);
+    return pa;
 }
 
 
@@ -186,7 +206,7 @@ static void launch_kernel(PciechodevState *pdev, uint64_t va)
 
             if (((ih_ring_rptr - ih_ring_wptr) & ih_ring_size) == 8) {
                 printf("ih ring full!!!\n");
-                sleep(10);
+                sleep(1);
             }
             pci_dma_write(&pdev->pdev, ih_ring_addr + (ih_ring_wptr & ih_ring_size), &va, 8);
             pci_set_irq(&pdev->pdev, 1);
@@ -198,13 +218,12 @@ static void launch_kernel(PciechodevState *pdev, uint64_t va)
         sleep(1);
     }
     if (gpu_pa) {
-        printf("cpu va to gpu pa\n");
-        gpu_data = (void *)gpu_pa;
-        gpu_data[0] = 1;
-        gpu_data[1] = 2;
-        gpu_data[2] = 3;
-        gpu_data[4] = 4;
-        gpu_data[5] = 3;
+        gpu_data = (char *)(gpu_pa + pdev->bar1);
+        printf("gpu old data %d %d\n", gpu_data[0], gpu_data[1]);
+        for (int i = 0; i < 1024; i++) {
+            gpu_data[i] = gpu_data[i] + 3;
+        }
+        printf("cpu va to gpu pa success %lx  gpu_data %p\n", gpu_pa, gpu_data);
     } else {
         printf("page fault, kernel abort\n");
     }
@@ -280,6 +299,7 @@ static void fire_dma(PciechodevState *pciechodev)
         printf("pci_dma_write: src: %lx, dst: %lx, cnt: %ld, cmd: %lx\n",
             dma->src, dma->dst, dma->cnt, dma->cmd);
         if(check_range(dma->src, dma->cnt) == 0) {
+            printf("EP src data %d\n", *(pciechodev->bar1 + dma->src));
             pci_dma_write(&pciechodev->pdev, dma->dst,
             pciechodev->bar1 + dma->src, dma->cnt);
         } else
@@ -378,7 +398,7 @@ static uint64_t pciechodev_bar1_mmio_read(void *opaque, hwaddr addr, unsigned si
 static void pciechodev_bar1_mmio_write(void *opaque, hwaddr addr, uint64_t val,
         unsigned size)
 {
-    printf("PCIECHODEV: BAR1 pciechodev_mmio_read() addr %lx size %x val %lx \n", addr, size, val);
+    printf("PCIECHODEV: BAR1 pciechodev_mmio_write() addr %lx size %x val %lx \n", addr, size, val);
     PciechodevState *pciechodev = opaque;
 
     if(size == 1) {
